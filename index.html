@@ -13,6 +13,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.7/firebase-auth-compat.js"></script>
 
     <script>
         tailwind.config = {
@@ -330,6 +331,7 @@
         };
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+        const auth = firebase.auth(); // Inicializar Auth
         // --- FIN DE LA CONFIGURACIÓN DE FIREBASE ---
 
         let checklistData = [];
@@ -371,7 +373,7 @@
             'Eliminado': `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>`,
             'default': `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>`
         };
-        const protectedRubros = ['Operativos', 'Obras de infraestructura', 'Administrativos', 'Eliminado'];
+        const protectedRubros = ['Operativos', 'Obras de infraestructura', 'Administrativos', 'Tramite de subdivision', 'Eliminado'];
         const protectedResponsables = ['Administrador', 'Otros']; 
 
         
@@ -533,7 +535,7 @@
                         case 'Proximas':
                             const sevenDaysFromNow = new Date(today);
                             sevenDaysFromNow.setDate(today.getDate() + 7);
-                            return taskDate.getTime() >= today.getTime() && taskDate.getTime() <= sevenDaysFromNow.getTime();
+                            return taskDate.getTime() >= today.getTime() && taskDate.getTime() <= sevenDaysFromNow.getTime(); 
                         default:
                             return true;
                     }
@@ -576,14 +578,18 @@
                     overdueIndicator = '<span class="w-2.5 h-2.5 bg-red-500 rounded-full ml-2 animate-pulse"></span>';
                 }
 
-                header.innerHTML = `<div class="flex items-center">${rubroIcons[rubro] || rubroIcons['default']}<h3 class="text-lg font-bold text-gray-700">${rubro}</h3>${overdueIndicator}</div><div class="flex items-center space-x-2"><span class="text-sm font-semibold text-gray-600">${okCount}/${totalInRubro}</span><svg class="w-6 h-6 text-gray-500 transition-transform transform ${currentOpenRubros.has(rubro) ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></div>`;
+                header.innerHTML = `<div class="flex items-center">${rubroIcons[rubro] || rubroIcons['default']}<h3 class="text-lg font-bold text-gray-700">${rubro}</h3>${overdueIndicator}</div>
+                                  <div class="flex items-center space-x-2">
+                                    <span class="text-sm font-semibold text-gray-600">${okCount}/${totalInRubro}</span>
+                                    <svg class="w-6 h-6 text-gray-500 transition-transform transform ${currentOpenRubros.has(rubro) ? 'rotate-180' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                  </div>`;
                 
                 const content = document.createElement('div');
                 content.className = 'accordion-content border-t border-gray-200';
                 
                 if (currentOpenRubros.has(rubro)) {
                     content.classList.add('open'); 
-                    
+
                     if (itemsToShow.length === 0) {
                          content.innerHTML = `<p class="text-center text-gray-500 p-4">No hay tareas que coincidan con los filtros actuales.</p>`;
                     } else {
@@ -602,7 +608,7 @@
                         });
 
                         const headerRow = document.createElement('div');
-                        headerRow.className = 'hidden md:grid grid-cols-[1fr_110px_150px_180px_120px] items-center gap-x-4 px-4 pt-2 text-xs text-gray-500 font-bold uppercase';
+                        headerRow.className = 'hidden md:grid grid-cols-[1fr_110px_150px_180px_120px_220px] items-center gap-x-4 px-4 pt-2 text-xs text-gray-500 font-bold uppercase';
                         headerRow.innerHTML = `<span>Requerimiento</span><span class="text-center">Prioridad</span><span>Responsable</span><span>Vencimiento</span><span class="text-center">Estado</span><span class="text-center">Acciones</span>`;
                         content.appendChild(headerRow);
                         
@@ -724,6 +730,7 @@
                 }
             });
         }
+        
         function renderPieChart(stats) {
             const ctx = document.getElementById('statusChart').getContext('2d'); if (!ctx) return;
             const filteredLabels = Object.keys(stats).filter(key => stats[key] > 0);
@@ -1344,7 +1351,21 @@
             responsibleFilters.addEventListener('click', handleFilterClick);
 
             // Carga Inicial
-            loadInitialData();
+            // MODIFICADO: Autenticación Anónima
+            auth.signInAnonymously()
+                .then(() => {
+                    console.log('Usuario autenticado anónimamente');
+                })
+                .catch((error) => {
+                    console.error('Error en autenticación anónima:', error);
+                    alert("Error de conexión segura: " + error.message);
+                });
+
+            auth.onAuthStateChanged((user) => {
+                if (user) {
+                    loadInitialData();
+                }
+            });
         });
     </script>
 </body>
